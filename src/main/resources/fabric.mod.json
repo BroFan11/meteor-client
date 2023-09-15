@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "name": "Meteor Client",
+  "name": "Hulladek Kliens",
   "id": "meteor-client",
   "version": "${version}",
   "description": "Based utility mod.",
