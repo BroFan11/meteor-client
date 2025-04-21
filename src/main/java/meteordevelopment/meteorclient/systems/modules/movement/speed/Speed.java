@@ -113,22 +113,18 @@ public class Speed extends Module {
 
     @EventHandler
     private void onPlayerMove(PlayerMoveEvent event) {
-        if (event.type != MovementType.SELF || mc.player.isFallFlying() || mc.player.isClimbing() || mc.player.getVehicle() != null) return;
-        if (!whenSneaking.get() && mc.player.isSneaking()) return;
-        if (vanillaOnGround.get() && !mc.player.isOnGround() && speedMode.get() == SpeedModes.Vanilla) return;
-        if (!inLiquids.get() && (mc.player.isTouchingWater() || mc.player.isInLava())) return;
+        if (event.type != MovementType.SELF || stopSpeed()) return;
 
-        Modules.get().get(Timer.class).setOverride(PlayerUtils.isMoving() ? timer.get() : Timer.OFF);
+        if (timer.get() != Timer.OFF) {
+            Modules.get().get(Timer.class).setOverride(PlayerUtils.isMoving() ? timer.get() : Timer.OFF);
+        }
 
         currentMode.onMove(event);
     }
 
     @EventHandler
     private void onPreTick(TickEvent.Pre event) {
-        if (mc.player.isFallFlying() || mc.player.isClimbing() || mc.player.getVehicle() != null) return;
-        if (!whenSneaking.get() && mc.player.isSneaking()) return;
-        if (vanillaOnGround.get() && !mc.player.isOnGround() && speedMode.get() == SpeedModes.Vanilla) return;
-        if (!inLiquids.get() && (mc.player.isTouchingWater() || mc.player.isInLava())) return;
+        if (stopSpeed()) return;
 
         currentMode.onTick();
     }
@@ -143,6 +139,13 @@ public class Speed extends Module {
             case Vanilla -> currentMode = new Vanilla();
             case Strafe -> currentMode = new Strafe();
         }
+    }
+
+    private boolean stopSpeed() {
+        if (mc.player.isGliding() || mc.player.isClimbing() || mc.player.getVehicle() != null) return true;
+        if (!whenSneaking.get() && mc.player.isSneaking()) return true;
+        if (vanillaOnGround.get() && !mc.player.isOnGround() && speedMode.get() == SpeedModes.Vanilla) return true;
+        return !inLiquids.get() && (mc.player.isTouchingWater() || mc.player.isInLava());
     }
 
     @Override

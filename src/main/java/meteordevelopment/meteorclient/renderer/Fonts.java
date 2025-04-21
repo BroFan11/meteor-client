@@ -32,7 +32,10 @@ public class Fonts {
     public static final List<FontFamily> FONT_FAMILIES = new ArrayList<>();
     public static CustomTextRenderer RENDERER;
 
-    @PreInit(dependencies = Shaders.class)
+    private Fonts() {
+    }
+
+    @PreInit
     public static void refresh() {
         FONT_FAMILIES.clear();
 
@@ -56,7 +59,10 @@ public class Fonts {
     }
 
     public static void load(FontFace fontFace) {
-        if (RENDERER != null && RENDERER.fontFace.equals(fontFace)) return;
+        if (RENDERER != null) {
+            if (RENDERER.fontFace.equals(fontFace)) return;
+            else RENDERER.destroy();
+        }
 
         try {
             RENDERER = new CustomTextRenderer(fontFace);
@@ -67,7 +73,7 @@ public class Fonts {
                 throw new RuntimeException("Failed to load default font: " + fontFace, e);
             }
 
-            MeteorClient.LOG.error("Failed to load font: " + fontFace, e);
+            MeteorClient.LOG.error("Failed to load font: {}", fontFace, e);
             load(Fonts.DEFAULT_FONT);
         }
 

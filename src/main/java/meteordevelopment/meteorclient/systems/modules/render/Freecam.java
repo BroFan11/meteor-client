@@ -5,7 +5,7 @@
 
 package meteordevelopment.meteorclient.systems.modules.render;
 
-import meteordevelopment.meteorclient.events.entity.DamageEvent;
+
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
 import meteordevelopment.meteorclient.events.game.OpenScreenEvent;
 import meteordevelopment.meteorclient.events.meteor.KeyEvent;
@@ -31,6 +31,7 @@ import meteordevelopment.orbit.EventPriority;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.entity.Entity;
 import net.minecraft.network.packet.s2c.play.DeathMessageS2CPacket;
+import net.minecraft.network.packet.s2c.play.HealthUpdateS2CPacket;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.BlockPos;
@@ -116,7 +117,7 @@ public class Freecam extends Module {
     private double speedValue;
 
     public float yaw, pitch;
-    public float prevYaw, prevPitch;
+    public float lastYaw, lastPitch;
 
     private double fovScale;
     private boolean bobView;
@@ -144,15 +145,20 @@ public class Freecam extends Module {
         Utils.set(pos, mc.gameRenderer.getCamera().getPos());
         Utils.set(prevPos, mc.gameRenderer.getCamera().getPos());
 
-        prevYaw = yaw;
-        prevPitch = pitch;
+        if (mc.options.getPerspective() == Perspective.THIRD_PERSON_FRONT) {
+            yaw += 180;
+            pitch *= -1;
+        }
 
-        forward = false;
-        backward = false;
-        right = false;
-        left = false;
-        up = false;
-        down = false;
+        lastYaw = yaw;
+        lastPitch = pitch;
+
+        forward = mc.options.forwardKey.isPressed();
+        backward = mc.options.backKey.isPressed();
+        right = mc.options.rightKey.isPressed();
+        left = mc.options.leftKey.isPressed();
+        up = mc.options.jumpKey.isPressed();
+        down = mc.options.sneakKey.isPressed();
 
         unpress();
         if (reloadChunks.get()) mc.worldRenderer.reload();
@@ -160,10 +166,15 @@ public class Freecam extends Module {
 
     @Override
     public void onDeactivate() {
-        if (reloadChunks.get()) mc.worldRenderer.reload();
+        if (reloadChunks.get()) {
+            mc.execute(mc.worldRenderer::reload);
+        }
+
         mc.options.setPerspective(perspective);
+
         if (staticView.get()) {
-            mc.options.getFovEffectScale().setValue((double)fovScale);
+
+            mc.options.getFovEffectScale().setValue(fovScale);
             mc.options.getBobView().setValue(bobView);
         }
     }
@@ -173,8 +184,8 @@ public class Freecam extends Module {
         unpress();
 
         prevPos.set(pos);
-        prevYaw = yaw;
-        prevPitch = pitch;
+        lastYaw = yaw;
+        lastPitch = pitch;
     }
 
     private void unpress() {
@@ -335,7 +346,7 @@ public class Freecam extends Module {
 
     @EventHandler(priority = EventPriority.LOW)
     private void onMouseScroll(MouseScrollEvent event) {
-        if (speedScrollSensitivity.get() > 0) {
+        if (speedScrollSensitivity.get() > 0 && mc.currentScreen == null) {
             speedValue += event.value * 0.25 * (speedScrollSensitivity.get() * speedValue);
             if (speedValue < 0.1) speedValue = 0.1;
 
@@ -349,17 +360,6 @@ public class Freecam extends Module {
     }
 
     @EventHandler
-    private void onDamage(DamageEvent event) {
-        if (event.entity.getUuid() == null) return;
-        if (!event.entity.getUuid().equals(mc.player.getUuid())) return;
-
-        if (toggleOnDamage.get()) {
-            toggle();
-            info("Toggled off because you took damage.");
-        }
-    }
-
-    @EventHandler
     private void onGameLeft(GameLeftEvent event) {
         if (!toggleOnLog.get()) return;
 
@@ -369,10 +369,16 @@ public class Freecam extends Module {
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event)  {
         if (event.packet instanceof DeathMessageS2CPacket packet) {
-            Entity entity = mc.world.getEntityById(packet.getEntityId());
+            Entity entity = mc.world.getEntityById(packet.playerId());
             if (entity == mc.player && toggleOnDeath.get()) {
                 toggle();
                 info("Toggled off because you died.");
+            }
+        }
+        else if (event.packet instanceof HealthUpdateS2CPacket packet) {
+            if (mc.player.getHealth() - packet.getHealth() > 0 && toggleOnDamage.get()) {
+                toggle();
+                info("Toggled off because you took damage.");
             }
         }
     }
@@ -385,11 +391,11 @@ public class Freecam extends Module {
     }
 
     public void changeLookDirection(double deltaX, double deltaY) {
-        prevYaw = yaw;
-        prevPitch = pitch;
+        lastYaw = yaw;
+        lastPitch = pitch;
 
-        yaw += deltaX;
-        pitch += deltaY;
+        yaw += (float) deltaX;
+        pitch += (float) deltaY;
 
         pitch = MathHelper.clamp(pitch, -90, 90);
     }
@@ -409,9 +415,9 @@ public class Freecam extends Module {
     }
 
     public double getYaw(float tickDelta) {
-        return MathHelper.lerp(tickDelta, prevYaw, yaw);
+        return MathHelper.lerp(tickDelta, lastYaw, yaw);
     }
     public double getPitch(float tickDelta) {
-        return MathHelper.lerp(tickDelta, prevPitch, pitch);
+        return MathHelper.lerp(tickDelta, lastPitch, pitch);
     }
 }

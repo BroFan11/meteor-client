@@ -12,10 +12,12 @@ import meteordevelopment.meteorclient.mixin.PlayerMoveC2SPacketAccessor;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.entity.Entity;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.network.packet.s2c.play.PlayerAbilitiesS2CPacket;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
 import net.minecraft.util.math.Vec3d;
 
@@ -28,7 +30,7 @@ public class Flight extends Module {
         .description("The mode for Flight.")
         .defaultValue(Mode.Abilities)
         .onChanged(mode -> {
-            if (!isActive()) return;
+            if (!isActive() || !Utils.canUpdate()) return;
             abilitiesOff();
         })
         .build()
@@ -46,6 +48,14 @@ public class Flight extends Module {
         .name("vertical-speed-match")
         .description("Matches your vertical speed to your horizontal speed, otherwise uses vanilla ratio.")
         .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<Boolean> noSneak = sgGeneral.add(new BoolSetting.Builder()
+        .name("no-sneak")
+        .description("Prevents you from sneaking while flying.")
+        .defaultValue(false)
+        .visible(() -> mode.get() == Mode.Velocity)
         .build()
     );
 
@@ -145,15 +155,17 @@ public class Flight extends Module {
 
         switch (mode.get()) {
             case Velocity -> {
-                // TODO: deal with underwater movement, find a way to "spoof" not being in water
-
                 mc.player.getAbilities().flying = false;
                 mc.player.setVelocity(0, 0, 0);
-                Vec3d initialVelocity = mc.player.getVelocity();
+                Vec3d playerVelocity = mc.player.getVelocity();
                 if (mc.options.jumpKey.isPressed())
-                    mc.player.setVelocity(initialVelocity.add(0, speed.get() * (verticalSpeedMatch.get() ? 10f : 5f), 0));
+                    playerVelocity = playerVelocity.add(0, speed.get() * (verticalSpeedMatch.get() ? 10f : 5f), 0);
                 if (mc.options.sneakKey.isPressed())
-                    mc.player.setVelocity(initialVelocity.subtract(0, speed.get() * (verticalSpeedMatch.get() ? 10f : 5f), 0));
+                    playerVelocity = playerVelocity.subtract(0, speed.get() * (verticalSpeedMatch.get() ? 10f : 5f), 0);
+                mc.player.setVelocity(playerVelocity);
+                if (noSneak.get()) {
+                    mc.player.setOnGround(false);
+                }
             }
             case Abilities -> {
                 if (mc.player.isSpectator()) return;
@@ -198,20 +210,32 @@ public class Flight extends Module {
                     mc.player.getZ(),
                     packet.getYaw(0),
                     packet.getPitch(0),
-                    packet.isOnGround()
+                    packet.isOnGround(),
+                    mc.player.horizontalCollision
                 );
             } else {
                 fullPacket = new PlayerMoveC2SPacket.PositionAndOnGround(
                     mc.player.getX(),
                     mc.player.getY(),
                     mc.player.getZ(),
-                    packet.isOnGround()
+                    packet.isOnGround(),
+                    mc.player.horizontalCollision
                 );
             }
             event.cancel();
             antiKickPacket(fullPacket, mc.player.getY());
             mc.getNetworkHandler().sendPacket(fullPacket);
         }
+    }
+
+    @EventHandler
+    private void onReceivePacket(PacketEvent.Receive event) {
+        if (!(event.packet instanceof PlayerAbilitiesS2CPacket packet) || mode.get() != Mode.Abilities) return;
+        event.cancel(); // Cancel packet, so fly won't be toggled
+
+        mc.player.getAbilities().invulnerable = packet.isInvulnerable();
+        mc.player.getAbilities().creativeMode = packet.isCreativeMode();
+        mc.player.getAbilities().setWalkSpeed(packet.getWalkSpeed());
     }
 
     private boolean shouldFlyDown(double currentY, double lastY) {
@@ -237,6 +261,10 @@ public class Flight extends Module {
 
         if (!isActive() || mode.get() != Mode.Velocity) return -1;
         return speed.get().floatValue() * (mc.player.isSprinting() ? 15f : 10f);
+    }
+
+    public boolean noSneak() {
+        return isActive() && mode.get() == Mode.Velocity && noSneak.get();
     }
 
     public enum Mode {

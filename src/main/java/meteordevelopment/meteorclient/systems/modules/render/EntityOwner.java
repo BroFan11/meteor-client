@@ -6,10 +6,8 @@
 package meteordevelopment.meteorclient.systems.modules.render;
 
 import meteordevelopment.meteorclient.events.render.Render2DEvent;
-import meteordevelopment.meteorclient.mixin.ProjectileEntityAccessor;
 import meteordevelopment.meteorclient.renderer.Renderer2D;
 import meteordevelopment.meteorclient.renderer.text.TextRenderer;
-import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
@@ -22,10 +20,11 @@ import meteordevelopment.meteorclient.utils.render.NametagUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.passive.AbstractHorseEntity;
+import net.minecraft.entity.LazyEntityReference;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.projectile.ProjectileEntity;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3d;
 
 import java.util.HashMap;
@@ -46,13 +45,6 @@ public class EntityOwner extends Module {
         .build()
     );
 
-    private final Setting<Boolean> projectiles = sgGeneral.add(new BoolSetting.Builder()
-        .name("projectiles")
-        .description("Display owner names of projectiles.")
-        .defaultValue(false)
-        .build()
-    );
-
     private final Vector3d pos = new Vector3d();
     private final Map<UUID, String> uuidToName = new HashMap<>();
 
@@ -68,19 +60,17 @@ public class EntityOwner extends Module {
     @EventHandler
     private void onRender2D(Render2DEvent event) {
         for (Entity entity : mc.world.getEntities()) {
-            UUID ownerUuid;
+            @Nullable LazyEntityReference<LivingEntity> owner;
 
-            if (entity instanceof TameableEntity tameable) ownerUuid = tameable.getOwnerUuid();
-            else if (entity instanceof AbstractHorseEntity horse) ownerUuid = horse.getOwnerUuid();
-            else if (entity instanceof ProjectileEntity && projectiles.get()) ownerUuid = ((ProjectileEntityAccessor) entity).getOwnerUuid();
+            if (entity instanceof TameableEntity tameable) owner = tameable.getOwnerReference();
             else continue;
 
-            if (ownerUuid != null) {
+            if (owner != null) {
                 Utils.set(pos, entity, event.tickDelta);
                 pos.add(0, entity.getEyeHeight(entity.getPose()) + 0.75, 0);
 
                 if (NametagUtils.to2D(pos, scale.get())) {
-                    renderNametag(getOwnerName(ownerUuid));
+                    renderNametag(getOwnerName(owner));
                 }
             }
         }
@@ -99,7 +89,7 @@ public class EntityOwner extends Module {
 
         Renderer2D.COLOR.begin();
         Renderer2D.COLOR.quad(x - 1, y - 1, w + 2, text.getHeight() + 2, BACKGROUND);
-        Renderer2D.COLOR.render(null);
+        Renderer2D.COLOR.render();
 
         text.render(name, x, y, TEXT);
 
@@ -107,16 +97,18 @@ public class EntityOwner extends Module {
         NametagUtils.end();
     }
 
-    private String getOwnerName(UUID uuid) {
+    private String getOwnerName(LazyEntityReference<LivingEntity> owner) {
         // Check if the player is online
-        PlayerEntity player = mc.world.getPlayerByUuid(uuid);
-        if (player != null) return player.getEntityName();
+        @Nullable LivingEntity ownerEntity = owner.resolve(mc.world, LivingEntity.class);
+        if (ownerEntity instanceof PlayerEntity playerEntity) return playerEntity.getName().getString();
+
+        UUID uuid = owner.getUuid();
 
         // Check cache
         String name = uuidToName.get(uuid);
         if (name != null) return name;
 
-        // Makes a HTTP request to Mojang API
+        // Makes an HTTP request to Mojang API
         MeteorExecutor.execute(() -> {
             if (isActive()) {
                 ProfileResponse res = Http.get("https://sessionserver.mojang.com/session/minecraft/profile/" + uuid.toString().replace("-", "")).sendJson(ProfileResponse.class);

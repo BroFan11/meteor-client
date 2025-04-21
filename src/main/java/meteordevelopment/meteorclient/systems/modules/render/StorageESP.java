@@ -5,14 +5,22 @@
 
 package meteordevelopment.meteorclient.systems.modules.render;
 
+import meteordevelopment.meteorclient.events.entity.player.InteractBlockEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
-import meteordevelopment.meteorclient.renderer.*;
+import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
+import meteordevelopment.meteorclient.gui.widgets.containers.WVerticalList;
+import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
+import meteordevelopment.meteorclient.renderer.MeshBuilder;
+import meteordevelopment.meteorclient.renderer.MeshRenderer;
+import meteordevelopment.meteorclient.renderer.MeteorRenderPipelines;
+import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
-import meteordevelopment.meteorclient.utils.render.MeshVertexConsumerProvider;
+import meteordevelopment.meteorclient.utils.render.MeshBuilderVertexConsumerProvider;
 import meteordevelopment.meteorclient.utils.render.RenderUtils;
 import meteordevelopment.meteorclient.utils.render.SimpleBlockRenderer;
 import meteordevelopment.meteorclient.utils.render.color.Color;
@@ -25,13 +33,22 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.entity.*;
 import net.minecraft.block.enums.ChestType;
+import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class StorageESP extends Module {
-    private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private static final MatrixStack MATRICES = new MatrixStack();
 
-    public final Setting<Mode> mode = sgGeneral.add(new EnumSetting.Builder<Mode>()
+    private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final SettingGroup sgOpened = settings.createGroup("Opened Rendering");
+    private final Set<BlockPos> interactedBlocks = new HashSet<>();
+
+    private final Setting<Mode> mode = sgGeneral.add(new EnumSetting.Builder<Mode>()
         .name("mode")
         .description("Rendering mode.")
         .defaultValue(Mode.Shader)
@@ -141,19 +158,34 @@ public class StorageESP extends Module {
         .build()
     );
 
+    private final Setting<Boolean> hideOpened = sgOpened.add(new BoolSetting.Builder()
+        .name("hide-opened")
+        .description("Hides opened containers.")
+        .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<SettingColor> openedColor = sgOpened.add(new ColorSetting.Builder()
+        .name("opened-color")
+        .description("Optional setting to change colors of opened chests, as opposed to not rendering. Disabled at zero opacity.")
+        .defaultValue(new SettingColor(203, 90, 203, 0)) /// TRANSPARENT BY DEFAULT.
+        .build()
+    );
+
+
     private final Color lineColor = new Color(0, 0, 0, 0);
     private final Color sideColor = new Color(0, 0, 0, 0);
     private boolean render;
     private int count;
 
-    private final Mesh mesh;
-    private final MeshVertexConsumerProvider vertexConsumerProvider;
+    private final MeshBuilder mesh;
+    private final MeshBuilderVertexConsumerProvider vertexConsumerProvider;
 
     public StorageESP() {
         super(Categories.Render, "storage-esp", "Renders all specified storage blocks.");
 
-        mesh = new ShaderMesh(Shaders.POS_COLOR, DrawMode.Triangles, Mesh.Attrib.Vec3, Mesh.Attrib.Color);
-        vertexConsumerProvider = new MeshVertexConsumerProvider(mesh);
+        mesh = new MeshBuilder(MeteorRenderPipelines.WORLD_COLORED);
+        vertexConsumerProvider = new MeshBuilderVertexConsumerProvider(mesh);
     }
 
     private void getBlockEntityColor(BlockEntity blockEntity) {
@@ -166,7 +198,7 @@ public class StorageESP extends Module {
         else if (blockEntity instanceof BarrelBlockEntity) lineColor.set(barrel.get());
         else if (blockEntity instanceof ShulkerBoxBlockEntity) lineColor.set(shulker.get());
         else if (blockEntity instanceof EnderChestBlockEntity) lineColor.set(enderChest.get());
-        else if (blockEntity instanceof AbstractFurnaceBlockEntity || blockEntity instanceof DispenserBlockEntity || blockEntity instanceof HopperBlockEntity) lineColor.set(other.get());
+        else if (blockEntity instanceof AbstractFurnaceBlockEntity || blockEntity instanceof BrewingStandBlockEntity || blockEntity instanceof ChiseledBookshelfBlockEntity || blockEntity instanceof CrafterBlockEntity || blockEntity instanceof DispenserBlockEntity || blockEntity instanceof DecoratedPotBlockEntity || blockEntity instanceof HopperBlockEntity) lineColor.set(other.get());
         else return;
 
         render = true;
@@ -177,14 +209,62 @@ public class StorageESP extends Module {
         }
     }
 
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        WVerticalList list = theme.verticalList();
+
+        // Button to Clear Interacted Blocks
+        WButton clear = list.add(theme.button("Clear Rendering Cache")).expandX().widget();
+
+        clear.action = interactedBlocks::clear;
+
+        return list;
+    }
+
+    @EventHandler
+    private void onBlockInteract(InteractBlockEvent event) {
+        BlockPos pos = event.result.getBlockPos();
+        BlockEntity blockEntity = mc.world.getBlockEntity(pos);
+
+        if (blockEntity == null) return;
+
+        interactedBlocks.add(pos);
+        if (blockEntity instanceof ChestBlockEntity chestBlockEntity) {
+            BlockState state = chestBlockEntity.getCachedState();
+            ChestType chestType = state.get(ChestBlock.CHEST_TYPE);
+
+            if (chestType == ChestType.LEFT || chestType == ChestType.RIGHT) {
+                // It's part of a double chest
+                Direction facing = state.get(ChestBlock.FACING);
+                BlockPos otherPartPos = pos.offset(chestType == ChestType.LEFT ? facing.rotateYClockwise() : facing.rotateYCounterclockwise());
+
+                interactedBlocks.add(otherPartPos);
+            }
+        }
+    }
+
     @EventHandler
     private void onRender(Render3DEvent event) {
         count = 0;
 
-        if (mode.get() == Mode.Shader) mesh.begin();
+        if (mode.get() == Mode.Shader) {
+            mesh.begin();
+        }
 
         for (BlockEntity blockEntity : Utils.blockEntities()) {
+            // Check if the block has been interacted with (opened)
+            boolean interacted = interactedBlocks.contains(blockEntity.getPos());
+            if (interacted && hideOpened.get()) continue;  // Skip rendering if "hideOpened" is true
+
             getBlockEntityColor(blockEntity);
+
+            // Set the color to openedColor if its alpha is greater than 0
+            if (interacted && openedColor.get().a > 0) {
+                // openedColor takes precedence.
+                lineColor.set(openedColor.get());
+                sideColor.set(openedColor.get());
+                sideColor.a = fillOpacity.get(); // Maintain fill opacity setting for consistency
+            }
 
             if (render) {
                 double dist = PlayerUtils.squaredDistanceTo(blockEntity.getPos().getX() + 0.5, blockEntity.getPos().getY() + 0.5, blockEntity.getPos().getZ() + 0.5);
@@ -201,19 +281,32 @@ public class StorageESP extends Module {
                     event.renderer.line(RenderUtils.center.x, RenderUtils.center.y, RenderUtils.center.z, blockEntity.getPos().getX() + 0.5, blockEntity.getPos().getY() + 0.5, blockEntity.getPos().getZ() + 0.5, lineColor);
                 }
 
-                if (mode.get() == Mode.Box && a >= 0.075) renderBox(event, blockEntity);
+                if (mode.get() == Mode.Box && a >= 0.075) {
+                    renderBox(event, blockEntity);
+                }
 
                 lineColor.a = prevLineA;
                 sideColor.a = prevSideA;
 
-                if (mode.get() == Mode.Shader) renderShader(event, blockEntity);
+                if (mode.get() == Mode.Shader) {
+                    renderShader(event, blockEntity);
+                }
 
                 count++;
             }
         }
 
-        if (mode.get() == Mode.Shader) PostProcessShaders.STORAGE_OUTLINE.endRender(() -> mesh.render(event.matrices));
+        if (mode.get() == Mode.Shader) {
+            PostProcessShaders.STORAGE_OUTLINE.endRender(() -> MeshRenderer.begin()
+                .attachments(mc.getFramebuffer())
+                .clearColor(Color.CLEAR)
+                .pipeline(MeteorRenderPipelines.WORLD_COLORED)
+                .mesh(mesh, event.matrices)
+                .end()
+            );
+        }
     }
+
 
     private void renderBox(Render3DEvent event, BlockEntity blockEntity) {
         double x1 = blockEntity.getPos().getX();

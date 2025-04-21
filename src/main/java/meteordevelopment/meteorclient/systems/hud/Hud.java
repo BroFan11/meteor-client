@@ -94,6 +94,7 @@ public class Hud extends System<Hud> implements Iterable<HudElement> {
     );
 
     // Keybindings
+    @SuppressWarnings("unused")
     private final Setting<Keybind> keybind = sgKeybind.add(new KeybindSetting.Builder()
         .name("bind")
         .defaultValue(Keybind.none())
@@ -160,13 +161,13 @@ public class Hud extends System<Hud> implements Iterable<HudElement> {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public void add(HudElementInfo.Preset preset, int x, int y, XAnchor xAnchor, YAnchor yAnchor) {
+    public void add(@NotNull HudElementInfo.Preset preset, int x, int y, XAnchor xAnchor, YAnchor yAnchor) {
         HudElement element = preset.info.create();
         preset.callback.accept(element);
         add(element, x, y, xAnchor, yAnchor);
     }
 
-    public void add(HudElementInfo<?>.Preset preset, int x, int y) {
+    public void add(@NotNull HudElementInfo<?>.Preset preset, int x, int y) {
         add(preset, x, y, null, null);
     }
 
@@ -207,15 +208,18 @@ public class Hud extends System<Hud> implements Iterable<HudElement> {
     @EventHandler
     private void onTick(TickEvent.Post event) {
         if (Utils.isLoading()) return;
-        if (!(active || HudEditorScreen.isOpen())) return;
 
         if (resetToDefaultElements) {
             resetToDefaultElementsImpl();
             resetToDefaultElements = false;
         }
 
+        if (!(active || HudEditorScreen.isOpen())) return;
+
         for (HudElement element : elements) {
-            if (element.isActive()) element.tick(HudRenderer.INSTANCE);
+            if (element.isActive() || element.isInEditor()) {
+                element.tick(HudRenderer.INSTANCE);
+            }
         }
     }
 
@@ -224,14 +228,16 @@ public class Hud extends System<Hud> implements Iterable<HudElement> {
         if (Utils.isLoading()) return;
 
         if (!active || shouldHideHud()) return;
-        if ((mc.options.hudHidden || mc.options.debugEnabled) && !HudEditorScreen.isOpen()) return;
+        if ((mc.options.hudHidden || mc.inGameHud.getDebugHud().shouldShowDebugHud()) && !HudEditorScreen.isOpen()) return;
 
         HudRenderer.INSTANCE.begin(event.drawContext);
 
         for (HudElement element : elements) {
             element.updatePos();
 
-            if (element.isActive()) element.render(HudRenderer.INSTANCE);
+            if (element.isActive() || element.isInEditor()) {
+                element.render(HudRenderer.INSTANCE);
+            }
         }
 
         HudRenderer.INSTANCE.end();
@@ -284,17 +290,17 @@ public class Hud extends System<Hud> implements Iterable<HudElement> {
             return this;
         }
 
-        active = tag.getBoolean("active");
-        settings.fromTag(tag.getCompound("settings"));
+        tag.getBoolean("active").ifPresent(active1 -> active = active1);
+        settings.fromTag(tag.getCompoundOrEmpty("settings"));
 
         // Elements
         elements.clear();
 
-        for (NbtElement e : tag.getList("elements", NbtElement.COMPOUND_TYPE)) {
+        for (NbtElement e : tag.getListOrEmpty("elements")) {
             NbtCompound c = (NbtCompound) e;
-            if (!c.contains("name")) continue;
+            if (c.getString("name").isEmpty()) continue;
 
-            HudElementInfo<?> info = infos.get(c.getString("name"));
+            HudElementInfo<?> info = infos.get(c.getString("name").get());
             if (info != null) {
                 HudElement element = info.create();
                 element.fromTag(c);

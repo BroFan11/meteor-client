@@ -91,7 +91,7 @@ public class PlayerRadarHud extends HudElement {
 
     private final Setting<Boolean> customScale = sgScale.add(new BoolSetting.Builder()
         .name("custom-scale")
-        .description("Applies custom text scale rather than the global one.")
+        .description("Applies a custom scale to this hud element.")
         .defaultValue(false)
         .build()
     );
@@ -153,7 +153,7 @@ public class PlayerRadarHud extends HudElement {
             if (entity.equals(mc.player)) continue;
             if (!friends.get() && Friends.get().isFriend(entity)) continue;
 
-            String text = entity.getEntityName();
+            String text = entity.getName().getString();
             if (distance.get()) text += String.format("(%sm)", Math.round(mc.getCameraEntity().distanceTo(entity)));
 
             width = Math.max(width, renderer.textWidth(text, shadow.get(), getScale()));
@@ -180,7 +180,7 @@ public class PlayerRadarHud extends HudElement {
             if (entity.equals(mc.player)) continue;
             if (!friends.get() && Friends.get().isFriend(entity)) continue;
 
-            String text = entity.getEntityName();
+            String text = entity.getName().getString();
             Color color = PlayerUtils.getPlayerColor(entity, primaryColor.get());
             String distanceText = null;
 
@@ -210,6 +210,6 @@ public class PlayerRadarHud extends HudElement {
     }
 
     private double getScale() {
-        return customScale.get() ? scale.get() : -1;
+        return customScale.get() ? scale.get() : Hud.get().getTextScale();
     }
 }

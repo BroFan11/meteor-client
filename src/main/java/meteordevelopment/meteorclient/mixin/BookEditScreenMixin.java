@@ -9,10 +9,7 @@ import it.unimi.dsi.fastutil.io.FastByteArrayOutputStream;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.BookEditScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtIo;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.nbt.NbtString;
+import net.minecraft.nbt.*;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Final;
@@ -87,20 +84,20 @@ public abstract class BookEditScreenMixin extends Screen {
                     DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes));
 
                     try {
-                        NbtCompound tag = NbtIo.read(in);
+                        NbtCompound tag = NbtIo.readCompressed(in, NbtSizeTracker.ofUnlimitedBytes());
 
-                        NbtList listTag = tag.getList("pages", 8).copy();
+                        NbtList listTag = tag.getListOrEmpty("pages").copy();
 
                         pages.clear();
                         for(int i = 0; i < listTag.size(); ++i) {
-                            pages.add(listTag.getString(i));
+                            pages.add(listTag.getString(i, ""));
                         }
 
                         if (pages.isEmpty()) {
                             pages.add("");
                         }
 
-                        currentPage = tag.getInt("currentPage");
+                        currentPage = tag.getInt("currentPage", 0);
 
                         dirty = true;
                         updateButtons();

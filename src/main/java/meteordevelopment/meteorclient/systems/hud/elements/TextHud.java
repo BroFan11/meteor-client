@@ -89,7 +89,6 @@ public class TextHud extends HudElement {
         .name("condition")
         .description("Condition to check when shown is not Always.")
         .visible(() -> shown.get() != Shown.Always)
-        .defaultValue("")
         .onChanged(s -> recompile())
         .renderer(StarscriptTextBoxRenderer.class)
         .build()
@@ -99,9 +98,9 @@ public class TextHud extends HudElement {
 
     public final Setting<Boolean> customScale = sgScale.add(new BoolSetting.Builder()
         .name("custom-scale")
-        .description("Applies custom text scale rather than the global one.")
+        .description("Applies a custom scale to this hud element.")
         .defaultValue(false)
-        .onChanged(integer -> recalculateSize = true)
+        .onChanged(aBoolean -> recalculateSize = true)
         .build()
     );
 
@@ -110,7 +109,7 @@ public class TextHud extends HudElement {
         .description("Custom scale.")
         .visible(customScale::get)
         .defaultValue(1)
-        .onChanged(integer -> recalculateSize = true)
+        .onChanged(aDouble -> recalculateSize = true)
         .min(0.5)
         .sliderRange(0.5, 3)
         .build()
@@ -196,7 +195,7 @@ public class TextHud extends HudElement {
 
             if (result.hasErrors()) {
                 script = null;
-                section = new Section(0, result.errors.get(0).toString());
+                section = new Section(0, result.errors.getFirst().toString());
                 calculateSize(renderer);
             }
             else script = Compiler.compile(result);
@@ -260,7 +259,7 @@ public class TextHud extends HudElement {
     }
 
     private double getScale() {
-        return customScale.get() ? scale.get() : -1;
+        return customScale.get() ? scale.get() : Hud.get().getTextScale();
     }
 
     public static Color getSectionColor(int i) {

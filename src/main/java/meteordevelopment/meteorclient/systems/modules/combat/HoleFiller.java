@@ -326,7 +326,7 @@ public class HoleFiller extends Module {
         if (((AbstractBlockAccessor) mc.world.getBlockState(testPos).getBlock()).isCollidable()) return false;
         testPos.add(0, -1, 0);
 
-        ((IBox) box).set(pos);
+        ((IBox) box).meteor$set(pos);
         if (!mc.world.getOtherEntities(null, box, entity
             -> entity instanceof PlayerEntity
             || entity instanceof TntEntity
@@ -343,13 +343,13 @@ public class HoleFiller extends Module {
         targets.clear();
 
         for (PlayerEntity player : mc.world.getPlayers()) {
-            if (player.distanceTo(mc.player) > targetRange.get() ||
+            if (player.squaredDistanceTo(mc.player) > Math.pow(targetRange.get(), 2) ||
                 player.isCreative() ||
                 player == mc.player ||
                 player.isDead() ||
                 !Friends.get().shouldAttack(player) ||
                 (ignoreSafe.get() && isSurrounded(player)) ||
-                (onlyMoving.get() && (player.getX() - player.prevX != 0 || player.getY() - player.prevY != 0 || player.getZ() - player.prevZ != 0))
+                (onlyMoving.get() && (player.getX() - player.lastX != 0 || player.getY() - player.lastY != 0 || player.getZ() - player.lastZ != 0))
             ) continue;
 
             targets.add(player);
@@ -378,9 +378,9 @@ public class HoleFiller extends Module {
 
         else if (predict.get()) {
             testVec.add(
-                player.getX() - player.prevX,
-                player.getY() - player.prevY,
-                player.getZ() - player.prevZ
+                player.getX() - player.lastX,
+                player.getY() - player.lastY,
+                player.getZ() - player.lastZ
             );
         }
 

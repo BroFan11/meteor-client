@@ -7,25 +7,20 @@ package meteordevelopment.meteorclient.settings;
 
 import net.minecraft.nbt.NbtCompound;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
 public class EnumSetting<T extends Enum<?>> extends Setting<T> {
-    private T[] values;
+    private final T[] values;
 
     private final List<String> suggestions;
 
+    @SuppressWarnings("unchecked")
     public EnumSetting(String name, String description, T defaultValue, Consumer<T> onChanged, Consumer<Setting<T>> onModuleActivated, IVisible visible) {
         super(name, description, defaultValue, onChanged, onModuleActivated, visible);
 
-        try {
-            values = (T[]) defaultValue.getClass().getMethod("values").invoke(null);
-        } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-            e.printStackTrace();
-        }
-
+        values = (T[]) defaultValue.getDeclaringClass().getEnumConstants();
         suggestions = new ArrayList<>(values.length);
         for (T value : values) suggestions.add(value.toString());
     }
@@ -58,7 +53,7 @@ public class EnumSetting<T extends Enum<?>> extends Setting<T> {
 
     @Override
     public T load(NbtCompound tag) {
-        parse(tag.getString("value"));
+        parse(tag.getString("value", ""));
 
         return get();
     }

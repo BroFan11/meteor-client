@@ -30,7 +30,6 @@ public class Profile implements ISerializable<Profile> {
     public Setting<String> name = sgGeneral.add(new StringSetting.Builder()
         .name("name")
         .description("The name of the profile.")
-        .defaultValue("")
         .filter(Utils::nameFilter)
         .build()
     );
@@ -117,7 +116,7 @@ public class Profile implements ISerializable<Profile> {
     @Override
     public Profile fromTag(NbtCompound tag) {
         if (tag.contains("settings")) {
-            settings.fromTag(tag.getCompound("settings"));
+            settings.fromTag(tag.getCompoundOrEmpty("settings"));
         }
 
         return this;

@@ -12,8 +12,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 
 @Mixin(BakedQuad.class)
-public class BakedQuadMixin implements IBakedQuad {
-    @Shadow @Final protected int[] vertexData;
+public abstract class BakedQuadMixin implements IBakedQuad {
+    @Shadow
+    @Final
+    private int[] vertexData;
 
     @Override
     public float meteor$getX(int vertexI) {

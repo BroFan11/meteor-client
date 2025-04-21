@@ -19,8 +19,6 @@ import net.minecraft.util.Formatting;
 
 import java.util.List;
 
-import static com.mojang.brigadier.Command.SINGLE_SUCCESS;
-
 public class BindsCommand extends Command {
     public BindsCommand() {
         super("binds", "List of all bound modules.");
@@ -37,7 +35,7 @@ public class BindsCommand extends Command {
             ChatUtils.info("--- Bound Modules ((highlight)%d(default)) ---", modules.size());
 
             for (Module module : modules) {
-                HoverEvent hoverEvent = new HoverEvent(HoverEvent.Action.SHOW_TEXT, getTooltip(module));
+                HoverEvent hoverEvent = new HoverEvent.ShowText(getTooltip(module));
 
                 MutableText text = Text.literal(module.title).formatted(Formatting.WHITE);
                 text.setStyle(text.getStyle().withHoverEvent(hoverEvent));

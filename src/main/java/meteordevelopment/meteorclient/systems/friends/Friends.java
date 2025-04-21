@@ -5,7 +5,7 @@
 
 package meteordevelopment.meteorclient.systems.friends;
 
-import com.mojang.util.UUIDTypeAdapter;
+import com.mojang.util.UndashedUuid;
 import meteordevelopment.meteorclient.systems.System;
 import meteordevelopment.meteorclient.systems.Systems;
 import meteordevelopment.meteorclient.utils.misc.NbtUtils;
@@ -56,7 +56,7 @@ public class Friends extends System<Friends> implements Iterable<Friend> {
 
     public Friend get(String name) {
         for (Friend friend : friends) {
-            if (friend.name.equals(name)) {
+            if (friend.name.equalsIgnoreCase(name)) {
                 return friend;
             }
         }
@@ -65,7 +65,7 @@ public class Friends extends System<Friends> implements Iterable<Friend> {
     }
 
     public Friend get(PlayerEntity player) {
-        return get(player.getEntityName());
+        return get(player.getName().getString());
     }
 
     public Friend get(PlayerListEntry player) {
@@ -110,16 +110,16 @@ public class Friends extends System<Friends> implements Iterable<Friend> {
     public Friends fromTag(NbtCompound tag) {
         friends.clear();
 
-        for (NbtElement itemTag : tag.getList("friends", 10)) {
+        for (NbtElement itemTag : tag.getListOrEmpty("friends")) {
             NbtCompound friendTag = (NbtCompound) itemTag;
             if (!friendTag.contains("name")) continue;
 
-            String name = friendTag.getString("name");
+            String name = friendTag.getString("name", "");
             if (get(name) != null) continue;
 
-            String uuid = friendTag.getString("id");
+            String uuid = friendTag.getString("id", "");
             Friend friend = !uuid.isBlank()
-                ? new Friend(name, UUIDTypeAdapter.fromString(uuid))
+                ? new Friend(name, UndashedUuid.fromStringLenient(uuid))
                 : new Friend(name);
 
             friends.add(friend);

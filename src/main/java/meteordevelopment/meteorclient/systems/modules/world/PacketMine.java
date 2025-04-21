@@ -134,7 +134,7 @@ public class PacketMine extends Module {
         for (MyBlock block : blocks) blockPool.free(block);
         blocks.clear();
         if (shouldUpdateSlot) {
-            mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(mc.player.getInventory().selectedSlot));
+            mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(mc.player.getInventory().getSelectedSlot()));
             shouldUpdateSlot = false;
         }
     }
@@ -165,17 +165,17 @@ public class PacketMine extends Module {
         blocks.removeIf(MyBlock::shouldRemove);
 
         if (shouldUpdateSlot) {
-            mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(mc.player.getInventory().selectedSlot));
+            mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(mc.player.getInventory().getSelectedSlot()));
             shouldUpdateSlot = false;
         }
 
-        if (!blocks.isEmpty()) blocks.get(0).mine();
+        if (!blocks.isEmpty()) blocks.getFirst().mine();
 
         if (!swapped && autoSwitch.get() && (!mc.player.isUsingItem() || !notOnUse.get())) {
             for (MyBlock block : blocks) {
                 if (block.isReady()) {
                     FindItemResult slot = InvUtils.findFastestTool(block.blockState);
-                    if (!slot.found() || mc.player.getInventory().selectedSlot == slot.slot()) continue;
+                    if (!slot.found() || mc.player.getInventory().getSelectedSlot() == slot.slot()) continue;
                     mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(slot.slot()));
                     swapped = true;
                     shouldUpdateSlot = true;
@@ -220,7 +220,7 @@ public class PacketMine extends Module {
         }
 
         public boolean shouldRemove() {
-            boolean remove = mc.world.getBlockState(blockPos).getBlock() != block || Utils.distance(mc.player.getX() - 0.5, mc.player.getY() + mc.player.getEyeHeight(mc.player.getPose()), mc.player.getZ() - 0.5, blockPos.getX() + direction.getOffsetX(), blockPos.getY() + direction.getOffsetY(), blockPos.getZ() + direction.getOffsetZ()) > mc.interactionManager.getReachDistance();
+            boolean remove = mc.world.getBlockState(blockPos).getBlock() != block || Utils.distance(mc.player.getX() - 0.5, mc.player.getY() + mc.player.getEyeHeight(mc.player.getPose()), mc.player.getZ() - 0.5, blockPos.getX() + direction.getOffsetX(), blockPos.getY() + direction.getOffsetY(), blockPos.getZ() + direction.getOffsetZ()) > mc.player.getBlockInteractionRange();
 
             if (remove) {
                 mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
@@ -250,7 +250,7 @@ public class PacketMine extends Module {
                 }
             }
 
-            progress += BlockUtils.getBreakDelta(bestSlot != -1 ? bestSlot : mc.player.getInventory().selectedSlot, blockState);
+            progress += BlockUtils.getBreakDelta(bestSlot != -1 ? bestSlot : mc.player.getInventory().getSelectedSlot(), blockState);
         }
 
         private void sendMinePackets() {

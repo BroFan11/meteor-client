@@ -35,6 +35,10 @@ public class MBlockPos {
         return set(entity.getBlockX(), entity.getBlockY(), entity.getBlockZ());
     }
 
+    public MBlockPos coerceBlockLevel(Entity entity) {
+        return set(entity.getBlockX(), (int) Math.round(entity.getY()), entity.getBlockZ());
+    }
+
     public MBlockPos offset(HorizontalDirection dir, int amount) {
         x += dir.offsetX * amount;
         z += dir.offsetZ * amount;
@@ -51,12 +55,12 @@ public class MBlockPos {
         return this;
     }
 
-    public BlockPos getMcPos() {
+    public BlockPos getBlockPos() {
         return POS.set(x, y, z);
     }
 
     public BlockState getState() {
-        return mc.world.getBlockState(getMcPos());
+        return mc.world.getBlockState(getBlockPos());
     }
 
     @Override
@@ -77,5 +81,10 @@ public class MBlockPos {
         result = 31 * result + y;
         result = 31 * result + z;
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return this.x + ", " + this.y + ", " + this.z;
     }
 }

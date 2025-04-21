@@ -212,12 +212,12 @@ public class LogoutSpots extends Module {
             y = entity.getY();
             z = entity.getZ() - halfWidth;
 
-            xWidth = entity.getBoundingBox().getXLength();
-            zWidth = entity.getBoundingBox().getZLength();
-            height = entity.getBoundingBox().getYLength();
+            xWidth = entity.getBoundingBox().getLengthX();
+            zWidth = entity.getBoundingBox().getLengthZ();
+            height = entity.getBoundingBox().getLengthY();
 
             uuid = entity.getUuid();
-            name = entity.getEntityName();
+            name = entity.getName().getString();
             health = Math.round(entity.getHealth() + entity.getAbsorptionAmount());
             maxHealth = Math.round(entity.getMaxHealth() + entity.getAbsorptionAmount());
 
@@ -253,7 +253,7 @@ public class LogoutSpots extends Module {
             double i = text.getWidth(name) / 2.0 + text.getWidth(healthText) / 2.0;
             Renderer2D.COLOR.begin();
             Renderer2D.COLOR.quad(-i, 0, i * 2, text.getHeight(), nameBackgroundColor.get());
-            Renderer2D.COLOR.render(null);
+            Renderer2D.COLOR.render();
 
             // Render name and health texts
             text.beginBig();

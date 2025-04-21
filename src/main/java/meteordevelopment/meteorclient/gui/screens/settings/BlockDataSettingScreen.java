@@ -56,11 +56,12 @@ public class BlockDataSettingScreen extends WindowScreen {
         initTable();
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends ICopyable<T> & ISerializable<T> & IChangeable & IBlockData<T>> void initTable() {
         for (Block block : Registries.BLOCK) {
             T blockData = (T) setting.get().get(block);
 
-            if (blockData != null && blockData.isChanged()) BLOCKS.add(0, block);
+            if (blockData != null && blockData.isChanged()) BLOCKS.addFirst(block);
             else BLOCKS.add(block);
         }
 
